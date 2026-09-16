@@ -1222,6 +1222,33 @@ class Generator:
             ]
             return entries, paths
 
+        existing_files = sorted(destination.glob("*.wav"))
+        existing_count = len(existing_files)
+        if existing_count > 0 and prefix == "":
+            max_existing_index = 0
+            for path in existing_files:
+                try:
+                    index = int(path.stem.split("_")[-1])
+                    max_existing_index = max(max_existing_index, index)
+                except ValueError:
+                    continue
+            if self.direct_attempt[engine] == 0:
+                self.direct_attempt[engine] = max_existing_index + 1
+                log(f"→ Resuming {engine} from index {max_existing_index + 1} ({existing_count} files exist)")
+            missing = requested - existing_count
+            if missing <= 0:
+                log(f"✅ {engine}: all {existing_count} requested files already exist")
+                entries = [
+                    {
+                        "id": path.stem,
+                        "minimum_duration": self.minimum_duration,
+                        "maximum_duration": self.maximum_duration,
+                    }
+                    for path in existing_files
+                ]
+                return entries, existing_files
+            requested = missing
+
         entries = self.make_direct_entries(engine, requested, destination, reference_paths, prefix)
         input_path = self.build_dir / f"{engine}_{prefix or 'main'}.direct.jsonl"
         write_jsonl(input_path, entries)
@@ -1273,11 +1300,16 @@ class Generator:
                 ],
                 env=self.env,
             )
-        return entries, [
-            destination / f"{entry['id']}.wav"
-            for entry in entries
-            if (destination / f"{entry['id']}.wav").is_file()
+        all_paths = sorted(destination.glob("*.wav"))
+        all_entries = [
+            {
+                "id": path.stem,
+                "minimum_duration": self.minimum_duration,
+                "maximum_duration": self.maximum_duration,
+            }
+            for path in all_paths
         ]
+        return all_entries, all_paths
 
     def qualify_direct_candidates(
         self,
@@ -1415,7 +1447,6 @@ class Generator:
             raise RuntimeError(
                 f"No TTS engine is available for language={self.args.language} mode={self.args.tts_mode}."
             )
-        shutil.rmtree(self.build_dir, ignore_errors=True)
         self.raw_dir.mkdir(parents=True, exist_ok=True)
         self.final_dir.mkdir(parents=True, exist_ok=True)
         plan = distribute_samples(self.args.samples, engines)
@@ -1423,7 +1454,11 @@ class Generator:
         if self.args.language == "en" and ENGINE_QWEN3 in plan:
             log(f"   English accent emphasis: {self.english_accent}")
         for engine, count in plan.items():
-            log(f"   {engine}: {count} sample(s)")
+            existing = len(list((self.raw_dir / engine).glob("*.wav"))) if (self.raw_dir / engine).exists() else 0
+            if existing > 0:
+                log(f"   {engine}: {count} sample(s) ({existing} already exist, resuming)")
+            else:
+                log(f"   {engine}: {count} sample(s)")
         log(
             f"   safety duration: {self.minimum_duration:.2f}–{self.maximum_duration:.2f}s; "
             "static, silence, clipping, rambling, and exact duplicates are rejected"

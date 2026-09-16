@@ -619,9 +619,12 @@ cached_sample_stamp="$(read_cache_key "$SAMPLE_CACHE_STAMP_FILE")"
 if [[ "${count_existing:-0}" -eq "$MAX_TTS_SAMPLES" && -n "$cached_sample_key" && -n "$cached_sample_stamp" && "$cached_sample_key" == "$SAMPLE_CACHE_KEY" ]]; then
   sample_cache_hit=true
   echo "✅ Reusing generated samples for the same wake word and voice setup."
+elif [[ "${count_existing:-0}" -gt 0 && -n "$cached_sample_key" && "$cached_sample_key" == "$SAMPLE_CACHE_KEY" ]]; then
+  echo "♻️ Found ${count_existing}/${MAX_TTS_SAMPLES} existing samples; resuming generation…"
+  mkdir -p generated_samples
 else
   if [[ "${count_existing:-0}" -gt 0 || -n "$cached_sample_key" || -n "$cached_sample_stamp" ]]; then
-    echo "♻️ Generated sample cache changed or is incomplete; rebuilding generated samples."
+    echo "♻️ Generated sample cache changed; rebuilding generated samples."
     rm -rf generated_samples
     mkdir -p generated_samples
   fi
