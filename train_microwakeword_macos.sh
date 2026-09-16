@@ -652,7 +652,9 @@ if [[ "$sample_cache_hit" != "true" ]]; then
   done
 
   printf 'CMD:'
-  printf ' %q' "${generator_cmd[@]}"
+  for _cmd_arg in "${generator_cmd[@]}"; do
+    printf ' "%s"' "$_cmd_arg"
+  done
   printf '\n'
   "${generator_cmd[@]}"
   generated_files=$(count_matching_files "generated_samples" "*.wav")

@@ -3141,6 +3141,8 @@ def _run_training_background(
                 stderr=subprocess.STDOUT,
                 text=True,
                 bufsize=1,
+                encoding="utf-8",
+                errors="replace",
                 env=env,
                 pass_fds=(training_lock.fileno(),) if training_lock is not None else (),
                 start_new_session=(os.name == "posix"),
